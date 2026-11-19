@@ -1,0 +1,28 @@
+<ol class="product-ideation-progress" aria-label="Fortschritt der Ideation">
+  <li data-phase="zielgruppe">Zielgruppenidentifikation<span aria-hidden="true">›</span></li>
+  <li data-phase="szenario">Nutzungsszenario<span aria-hidden="true">›</span></li>
+  <li data-phase="funktionen">Produktfunktionen<span aria-hidden="true">›</span></li>
+  <li data-phase="konzept">Produktkonzept</li>
+</ol>
+<style>
+  .product-ideation-progress {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .6em;
+    list-style: none;
+    margin: 0 0 1em;
+    padding: 0;
+  }
+  .product-ideation-progress li {
+    display: inline-flex;
+    align-items: center;
+    gap: .6em;
+    color: var(--muted-foreground, currentColor);
+  }
+  .product-ideation-progress [aria-current="step"] {
+    color: var(--foreground, currentColor);
+    font-weight: 500;
+    text-decoration: underline;
+    text-underline-offset: .25em;
+  }
+</style>

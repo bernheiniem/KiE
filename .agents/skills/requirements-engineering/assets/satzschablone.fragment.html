@@ -1,0 +1,214 @@
+<section id="re-sentence-editor" aria-labelledby="re-sentence-title">
+  <style>
+    #re-sentence-editor { display:grid; gap:1rem; }
+    #re-sentence-editor ol { display:flex; flex-wrap:wrap; gap:.6em; list-style:none; margin:0; padding:0; color:var(--muted-foreground); }
+    #re-sentence-editor [aria-current=step] { color:var(--foreground); text-decoration:underline; text-underline-offset:.25em; font-weight:500; }
+    #re-sentence-editor dl, #re-sentence-editor form { display:grid; gap:.85rem; margin:0; }
+    #re-sentence-editor dt { font-weight:500; }
+    #re-sentence-editor dd { margin:0; }
+    #re-sentence-editor fieldset { display:grid; gap:.65rem; min-width:0; margin:0; padding:0; border:0; }
+    #re-sentence-editor legend { margin-bottom:.6rem; font-weight:500; }
+    #re-sentence-editor .fields { display:grid; gap:.65rem; grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr)); }
+    #re-sentence-editor label { display:grid; gap:.25rem; min-width:0; }
+    #re-sentence-editor :is(input, textarea, select) { width:100%; box-sizing:border-box; }
+    #re-sentence-editor [hidden] { display:none; }
+    #re-sentence-editor output { display:block; overflow-wrap:anywhere; }
+    @supports (appearance: base-select) {
+      #re-sentence-editor select[name="modal"],
+      #re-sentence-editor select[name="modal"]::picker(select) { appearance:base-select; }
+      #re-sentence-editor selectedcontent .modal-explanation { display:none; }
+    }
+  </style>
+  <ol aria-label="Fortschritt der Anforderungsprüfung">
+    <li>Stakeholderbedarfe <span aria-hidden="true">›</span></li>
+    <li aria-current="step">Systemanforderungen <span aria-hidden="true">›</span></li>
+    <li>Prüfkriterien und Freigabe</li>
+  </ol>
+  <h2 id="re-sentence-title"></h2>
+  <dl>
+    <dt>1. Quelldatei</dt>
+    <dd id="re-sentence-source"></dd>
+    <dt>2. Zitat</dt>
+    <dd id="re-sentence-quote"></dd>
+  </dl>
+  <form>
+    <fieldset>
+      <legend>3. Anforderungsvorschlag</legend><p id="re-sentence-context"></p>
+      <div class="card">
+        <h3>Vollständiger Anforderungssatz</h3>
+        <output aria-live="polite"></output>
+      </div>
+      <label>Bedingung · Wann?
+        <textarea class="form-control" name="condition" rows="2" maxlength="300"></textarea>
+      </label>
+      <div class="fields">
+        <label>Verbindlichkeit
+          <select class="form-select" name="modal">
+            <button type="button"><selectedcontent></selectedcontent></button>
+            <option value="muss" data-explanation="verbindlich">muss</option>
+            <option value="soll" data-explanation="vorgegeben">soll</option>
+            <option value="sollte" data-explanation="empfohlen">sollte</option>
+            <option value="wird" data-explanation="Festlegung">wird</option>
+            <option value="kann" data-explanation="optional">kann</option>
+          </select>
+        </label>
+        <label>System oder Element
+          <input class="form-control" name="system" required maxlength="120">
+        </label>
+        <label>Art der Funktionalität
+          <select class="form-select" name="pattern">
+            <option value="direct">Direkte Systemfunktion</option>
+            <option value="capability">fähig sein</option>
+            <option value="actor">Akteur die Möglichkeit bieten</option>
+          </select>
+        </label>
+        <label id="re-sentence-actor-field" hidden>Akteur im Dativ
+          <input class="form-control" name="actor" maxlength="120" disabled>
+        </label>
+        <label><span id="re-sentence-verb-label">Prozesswort</span>
+          <input class="form-control" name="verb" required maxlength="120">
+        </label>
+      </div>
+      <label>Objekt und Ergänzung
+        <textarea class="form-control" name="object" rows="2" required maxlength="400"></textarea>
+      </label>
+
+    </fieldset>
+    <fieldset>
+      <legend>4. Deine Entscheidung</legend>
+      <p id="re-sentence-question"></p>
+      <label>Meine Aussage
+        <textarea class="form-control" name="statement" rows="2" maxlength="1500" placeholder="Begründung oder Ergänzung (optional)"></textarea>
+      </label>
+      <div><button class="btn btn-primary" type="submit" name="decision" value="approve">Fassung übernehmen</button> <button class="btn" type="submit" name="decision" value="revise" formnovalidate>Änderungswunsch senden</button></div>
+      <p role="status"></p>
+      <textarea class="form-control" aria-label="Antwort zum Kopieren" rows="4" readonly hidden></textarea>
+    </fieldset>
+  </form>
+</section>
+<script type="application/json" id="re-sentence-data">
+{
+  "project": "NapoliOne",
+  "id": "SYS-04",
+  "title": "Backdurchgang speichern",
+  "source": "produktkonzept.md · Funktionsentscheidungen F-04 · STK-02, SZ-01",
+  "quote": "Speichert die Backstein- und Garraumtemperatur beim Start sowie die Backdauer eines gelungenen Durchgangs und erlaubt den späteren Abruf als Referenz.",
+  "context": "Beide Starttemperaturen und die Backdauer sollen zusammen in einem Protokolleintrag stehen.",
+  "condition": "Wenn der Anwender einen abgeschlossenen Backdurchgang zum Speichern auswählt",
+  "modal": "muss",
+  "system": "NapoliOne",
+  "pattern": "direct",
+  "actor": "dem Anwender",
+  "object": "dessen beide Starttemperaturen und Backdauer gemeinsam als Protokolleintrag",
+  "directVerb": "speichern",
+  "indirectVerb": "zu speichern"
+}
+</script>
+<script>
+(() => {
+  const root = document.getElementById('re-sentence-editor');
+  const form = root.querySelector('form');
+  const fields = form.elements;
+  const data = JSON.parse(document.getElementById('re-sentence-data').textContent);
+  const write = (name, text) => { root.querySelector('#re-sentence-' + name).textContent = text; };
+  write('title', data.id + ' · ' + data.title);
+  write('source', data.source);
+  write('quote', '„' + data.quote + '“');
+  write('context', data.context);
+  write('question', 'Soll ' + data.id + ' in der angezeigten Fassung übernommen werden?');
+  for (const name of ['condition', 'modal', 'system', 'pattern', 'actor', 'object']) {
+    fields.namedItem(name).value = data[name];
+  }
+  const output = root.querySelector('output');
+  const actorField = root.querySelector('#re-sentence-actor-field');
+  const verbLabel = root.querySelector('#re-sentence-verb-label');
+  const status = root.querySelector('[role=status]');
+  const copy = root.querySelector('[readonly]');
+  const modalControl = fields.namedItem('modal');
+  if (window.CSS?.supports('appearance', 'base-select') &&
+      modalControl.querySelector('selectedcontent')) {
+    for (const option of modalControl.options) {
+      const explanation = document.createElement('span');
+      explanation.className = 'modal-explanation';
+      explanation.textContent = ' · ' + option.dataset.explanation;
+      option.append(explanation);
+    }
+  }
+  let direct = data.pattern === 'direct';
+  let directVerb = data.directVerb;
+  let indirectVerb = data.indirectVerb;
+  fields.namedItem('verb').value = direct ? directVerb : indirectVerb;
+
+  function sentence() {
+    const read = (name) => fields.namedItem(name).value.trim();
+    const condition = read('condition').replace(/[,.]+$/, '');
+    const modal = read('modal');
+    const system = read('system');
+    const pattern = read('pattern');
+    const actor = read('actor');
+    const object = read('object');
+    const verb = read('verb').replace(/\.+$/, '');
+    if (!system || !object || !verb || (pattern === 'actor' && !actor)) return '';
+    const head = condition
+      ? condition[0].toLocaleUpperCase('de') + condition.slice(1) + ', ' + modal + ' ' + system
+      : system[0].toLocaleUpperCase('de') + system.slice(1) + ' ' + modal;
+    const connector = {
+      direct: '',
+      capability: ' fähig sein,',
+      actor: ' ' + actor + ' die Möglichkeit bieten,'
+    }[pattern];
+    return head + connector + ' ' + object + ' ' + verb + '.';
+  }
+
+  function render() {
+    const pattern = fields.namedItem('pattern').value;
+    const verb = fields.namedItem('verb');
+    const nextDirect = pattern === 'direct';
+    if (nextDirect !== direct) {
+      if (direct) directVerb = verb.value;
+      else indirectVerb = verb.value;
+      verb.value = nextDirect ? directVerb : indirectVerb;
+      direct = nextDirect;
+    }
+    const hasActor = pattern === 'actor';
+    actorField.hidden = !hasActor;
+    fields.namedItem('actor').disabled = !hasActor;
+    fields.namedItem('actor').required = hasActor;
+    verbLabel.textContent = direct ? 'Prozesswort' : 'Prozesswort mit „zu“';
+    output.textContent = sentence() || 'Bitte die fehlenden Satzbausteine ergänzen.';
+    copy.hidden = true;
+    status.textContent = '';
+  }
+
+  form.addEventListener('input', render);
+  form.addEventListener('change', render);
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const accepted = sentence();
+    const approve = event.submitter?.value === 'approve';
+    const statement = fields.namedItem('statement').value.trim();
+    if (approve && !accepted) {
+      status.textContent = 'Bitte die fehlenden Satzbausteine ergänzen.';
+      return;
+    }
+    if (!approve && !statement) {
+      status.textContent = 'Bitte den Änderungswunsch unter „Meine Aussage“ eintragen.';
+      fields.namedItem('statement').focus();
+      return;
+    }
+    const decision = approve ? 'Ich übernehme die angezeigte Fassung.' : 'Bitte überarbeite den Vorschlag und lege ihn erneut vor.';
+    const prompt = data.project + ' · Systemanforderungen · ' + data.id + '\n' + decision
+      + (accepted ? '\nAnforderungssatz: ' + accepted : '')
+      + (statement ? '\nMeine Aussage: ' + statement : '');
+    try {
+      if (!window.openai?.sendFollowUpMessage) throw new Error('Übergabe nicht verfügbar');
+      await window.openai.sendFollowUpMessage({title: approve ? 'Fassung von ' + data.id + ' übernehmen' : 'Änderungswunsch zu ' + data.id + ' senden',prompt});
+    } catch {
+      copy.value = prompt;
+      copy.hidden = false;
+      status.textContent = 'Kopiere die Fassung und sende sie im Chat.';
+    }
+  });
+  render();
+})();
+</script>

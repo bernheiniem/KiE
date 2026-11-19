@@ -1,0 +1,287 @@
+<div id="product-ideation-prioritization" lang="de">
+  <h2>Funktionen priorisieren</h2>
+  <div class="ideation-layout" data-layout>
+    <section class="ideation-ranking" aria-label="Aktuelle Rangfolge">
+      <h3>Rangfolge <span class="text-small text-muted">· 0–100 Punkte</span></h3>
+      <p class="text-small text-muted">Wähle eine Funktion aus, um ihre Bewertung zu bearbeiten.</p>
+      <ol data-ranking></ol>
+    </section>
+    <section class="ideation-controls" aria-label="Bewertung bearbeiten">
+      <h3 class="ideation-name" data-feature-title></h3>
+      <div class="ideation-criteria" data-criteria></div>
+      <p class="text-small text-muted" data-selection aria-live="polite"></p>
+    </section>
+  </div>
+  <button class="btn btn-primary" type="button" data-submit>Bewertung an Codex übergeben</button>
+  <label class="form-label" data-copy hidden>
+    Bewertung kopieren und in den Chat einfügen
+    <textarea class="form-control" readonly rows="5"></textarea>
+  </label>
+</div>
+<style>
+  #product-ideation-prioritization {
+    display: grid;
+    gap: var(--font-size-base, 14px);
+    color: var(--foreground);
+  }
+  #product-ideation-prioritization .ideation-layout {
+    display: grid;
+    gap: calc(1.5 * var(--font-size-base, 14px));
+  }
+  #product-ideation-prioritization .ideation-controls,
+  #product-ideation-prioritization .ideation-ranking,
+  #product-ideation-prioritization .ideation-criteria {
+    display: grid;
+    align-content: start;
+    gap: calc(0.65 * var(--font-size-base, 14px));
+    min-width: 0;
+  }
+  #product-ideation-prioritization .ideation-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: calc(0.65 * var(--font-size-base, 14px));
+  }
+  #product-ideation-prioritization .ideation-feature {
+    display: grid;
+    gap: .25em;
+    width: 100%;
+    min-width: 0;
+    text-align: start;
+    white-space: normal;
+  }
+  #product-ideation-prioritization .ideation-feature-bottom {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: .15em .65em;
+  }
+  #product-ideation-prioritization .ideation-action {
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  #product-ideation-prioritization .ideation-feature[aria-pressed="true"] {
+    background: var(--accent, var(--muted));
+    color: var(--accent-foreground, var(--foreground));
+    border-color: var(--ring, currentColor);
+  }
+  #product-ideation-prioritization .ideation-summary {
+    overflow-wrap: anywhere;
+  }
+  #product-ideation-prioritization .ideation-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  #product-ideation-prioritization .ideation-value { flex: 0 0 auto; }
+  #product-ideation-prioritization [data-ranking] {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: var(--font-size-base, 14px);
+  }
+  #product-ideation-prioritization [data-ranking] > li { display: grid; gap: 4px; }
+  #product-ideation-prioritization [data-submit] { justify-self: start; }
+  #product-ideation-prioritization [hidden] { display: none; }
+  @media (min-width: 620px) {
+    #product-ideation-prioritization .ideation-layout:not(.ideation-single) {
+      grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    }
+  }
+</style>
+<script>
+(() => {
+  const {session, weights, features} = __IDEATION_DATA__;
+  const root = document.getElementById('product-ideation-prioritization');
+  const featureTitle = root.querySelector('[data-feature-title]');
+  const singleFeature = features.length === 1;
+  let selectedFeatureId = features[0].id;
+  const criteriaContainer = root.querySelector('[data-criteria]');
+  const selection = root.querySelector('[data-selection]');
+  const ranking = root.querySelector('[data-ranking]');
+  const rankingPanel = ranking.closest('section');
+  rankingPanel.hidden = singleFeature;
+  if (singleFeature) root.querySelector('[data-layout]').classList.add('ideation-single');
+  const submit = root.querySelector('[data-submit]');
+  const copyArea = root.querySelector('[data-copy]');
+  const copyText = copyArea.querySelector('textarea');
+  const criteria = [
+    {key: 'benefit', name: 'Nutzwert', low: 'gering', high: 'entscheidend'},
+    {key: 'fit', name: 'Zielpassung', low: 'gering', high: 'sehr hoch'},
+    {key: 'effort', name: 'Aufwand', low: 'gering', high: 'hoch'},
+  ];
+  const number = new Intl.NumberFormat('de', {maximumFractionDigits: 2});
+  const featuresById = new Map(features.map(feature => [feature.id, feature]));
+  const ratings = new Map(features.map(feature => [feature.id, {...feature.ratings}]));
+  const inputs = new Map();
+  const rows = new Map();
+  let revision = 0;
+
+  function element(tag, className, content) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (content !== undefined) node.textContent = content;
+    return node;
+  }
+
+  function points(feature) {
+    if (feature.blocker) return null;
+    let total = 0;
+    for (const {key} of criteria) {
+      if (weights[key] === 0) continue;
+      const value = ratings.get(feature.id)[key];
+      if (value === null) return null;
+      total += weights[key] * (key === 'effort' ? 5 - value : value - 1);
+    }
+    return total / 4;
+  }
+
+  function snapshot() {
+    return {session, weights, ratings: Object.fromEntries(ratings)};
+  }
+
+  function saveState() {
+    revision += 1;
+    const host = window.openai;
+    if (typeof host?.setWidgetState === 'function') {
+      host.setWidgetState({
+        modelContent: snapshot(),
+        privateContent: {selected: selectedFeatureId, revision},
+      }).catch(() => {});
+    }
+  }
+
+  function restoreState(state) {
+    if (state?.modelContent?.session !== session) return;
+    const savedRevision = state.privateContent?.revision ?? 0;
+    if (savedRevision < revision) return;
+    revision = savedRevision;
+    const stored = state.modelContent.ratings;
+    for (const feature of features) {
+      const savedRating = stored?.[feature.id];
+      const target = ratings.get(feature.id);
+      for (const {key} of criteria) {
+        const value = savedRating?.[key];
+        if (value === null || (Number.isInteger(value) && value >= 1 && value <= 5)) {
+          target[key] = value;
+        }
+      }
+    }
+    const selectedId = state.privateContent?.selected;
+    if (featuresById.has(selectedId)) selectedFeatureId = selectedId;
+  }
+
+  function draw() {
+    const selected = featuresById.get(selectedFeatureId);
+    featureTitle.textContent = `${selected.id} · ${selected.name}`;
+    const selectedRatings = ratings.get(selected.id);
+    for (const [key, input] of inputs) input.value = selectedRatings[key] ?? '';
+
+    const ordered = features.map(feature => ({feature, score: points(feature)}));
+    ordered.sort((a, b) => {
+      if (a.score !== b.score) return (b.score ?? -1) - (a.score ?? -1);
+      return Number(Boolean(a.feature.blocker)) - Number(Boolean(b.feature.blocker));
+    });
+
+    let previousScore = null;
+    let rank = 0;
+    for (const [index, {feature, score}] of ordered.entries()) {
+      const {row, button, name, value, summary, action} = rows.get(feature.id);
+      if (score !== null && score !== previousScore) rank = index + 1;
+      previousScore = score;
+      name.textContent = `${score === null ? '' : `${rank}. `}${feature.id} · ${feature.name}`;
+      button.setAttribute('aria-pressed', String(feature === selected));
+      action.textContent = feature === selected ? 'In Bearbeitung' : 'Bewerten ›';
+      const featureRatings = ratings.get(feature.id);
+      summary.textContent = criteria.map(({key, name}) => `${name} ${featureRatings[key] ?? '–'}`).join(' · ');
+      value.textContent = score === null ? (feature.blocker ? 'Gesperrt' : 'Offen') : number.format(score);
+      const currentRow = ranking.children[index];
+      if (currentRow !== row) ranking.insertBefore(row, currentRow ?? null);
+      if (feature === selected) {
+        selection.textContent = selected.blocker
+          ? `Gesperrt: ${selected.blocker}`
+          : score === null ? 'Bewertung offen' : singleFeature ? `${number.format(score)} von 100 Punkten` : `${number.format(score)} Punkte · Rang ${rank}`;
+      }
+    }
+    if (!copyArea.hidden) copyText.value = JSON.stringify(snapshot(), null, 2);
+  }
+
+  for (const feature of features) {
+    const row = element('li');
+    const button = element('button', 'btn ideation-feature');
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      selectedFeatureId = feature.id;
+      draw();
+      saveState();
+    });
+    const line = element('span', 'ideation-line');
+    const summary = element('span', 'text-small ideation-summary');
+    const name = element('span', 'ideation-name');
+    const value = element('span', 'ideation-value tabular-nums');
+    const bottom = element('span', 'ideation-feature-bottom');
+    const action = element('span', 'text-small ideation-action');
+    line.append(name, value);
+    bottom.append(summary, action);
+    button.append(line, bottom);
+    row.append(button);
+    rows.set(feature.id, {row, button, name, value, summary, action});
+  }
+
+  for (const {key, name, low, high} of criteria) {
+    const label = element('label', 'form-label', `${name} · ${weights[key]} %`);
+    const input = element('select', 'form-select');
+    input.add(new Option('Offen', ''));
+    for (let value = 1; value <= 5; value += 1) {
+      const caption = value === 1 ? `${value} · ${low}` : value === 5 ? `${value} · ${high}` : String(value);
+      input.add(new Option(caption, value));
+    }
+    input.addEventListener('change', () => {
+      ratings.get(selectedFeatureId)[key] = input.value === '' ? null : Number(input.value);
+      draw();
+      saveState();
+    });
+    inputs.set(key, input);
+    label.append(input);
+    criteriaContainer.append(label);
+  }
+
+  function showCopy() {
+    copyArea.hidden = false;
+    copyText.value = JSON.stringify(snapshot(), null, 2);
+    copyText.focus();
+    copyText.select();
+  }
+
+  const host = window.openai;
+  if (typeof host?.sendFollowUpMessage !== 'function') submit.textContent = 'Bewertung zum Kopieren anzeigen';
+  submit.addEventListener('click', async () => {
+    const currentHost = window.openai;
+    if (typeof currentHost?.sendFollowUpMessage === 'function') {
+      submit.disabled = true;
+      try {
+        await currentHost.sendFollowUpMessage({
+          title: 'Bewertung an Codex übergeben',
+          prompt: `Hier ist mein aktueller Bewertungsstand für die angegebene Product-Ideation-Sitzung. Bitte gleiche ihn mit der aktuellen Auswahlliste ab und besprich die Priorisierung.\n\n${JSON.stringify(snapshot())}`,
+        });
+      } catch {
+        showCopy();
+      } finally {
+        submit.disabled = false;
+      }
+    } else {
+      showCopy();
+    }
+  });
+
+  restoreState(host?.widgetState);
+  window.addEventListener('openai:set_globals', event => {
+    const globals = event.detail?.globals;
+    restoreState(globals?.widgetState);
+    if (typeof window.openai?.sendFollowUpMessage === 'function') submit.textContent = 'Bewertung an Codex übergeben';
+    draw();
+  });
+  draw();
+})();
+</script>
